@@ -11,7 +11,9 @@ import (
 type Command struct {
 	Name        string      // command string
 	Shortcut    string      // optional shortcut for command
-	Description string      // description shown in help text
+	Description string      // short description shown in command list help
+	HelpText    string      // help text displayed for the command
+	Alias       string      // command's alias (usually nested)
 	Param       interface{} // user-defined parameter for this command
 	Tree        *Tree       // the tree this command belongs to
 	Subcommands *Tree       // the command's subtree of commands
@@ -76,14 +78,12 @@ func (c *Tree) Lookup(line string) (Selection, error) {
 
 	cmd := ci.(*Command)
 
-	if cmd.Subcommands != nil {
-		if argStr == "" {
-			h, err := cmd.Subcommands.Lookup("help")
-			if err == nil {
-				return h, nil
-			}
-			return Selection{}, nil
-		}
+	if cmd.Alias != "" {
+		line = cmd.Alias + " " + argStr
+		return c.Lookup(line)
+	}
+
+	if cmd.Subcommands != nil && argStr != "" {
 		return cmd.Subcommands.Lookup(argStr)
 	}
 
