@@ -6,32 +6,32 @@ import (
 	"github.com/beevik/prefixtree"
 )
 
+// A Tree contains one or more commands which are grouped together and may be
+// looked up by a shortest unambiguous prefix match.
+type Tree struct {
+	Title    string     // description of all commands in tree
+	Commands []*Command // all commands in the tree
+	pt       *prefixtree.Tree
+}
+
 // A Command represents either a single named command or a new subtree of
 // commands.
 type Command struct {
 	Name        string      // command string
 	Shortcut    string      // optional shortcut for command
+	Brief       string      // brief description shown in command list
 	Description string      // short description shown in command list help
 	HelpText    string      // help text displayed for the command
 	Alias       string      // command's alias (usually nested)
-	Param       interface{} // user-defined parameter for this command
-	Tree        *Tree       // the tree this command belongs to
 	Subcommands *Tree       // the command's subtree of commands
+	Data        interface{} // user-defined data for this command
 }
 
-// A Tree contains one or more commands which are grouped together and
-// may be looked up by a shortest unambiguous prefix match.
-type Tree struct {
-	Title    string    // Description of all commands in tree
-	Commands []Command // All commands in the tree
-	tree     *prefixtree.Tree
-}
-
-// A Selection represents the result of looking up a command in a
-// hierarchical command tree. It includes the whitespace-delimited arguments
-// following the discovered command, if any.
+// A Selection represents the result of looking up a command in a command
+// tree. It includes the whitespace-delimited arguments following the
+// discovered command.
 type Selection struct {
-	Command *Command // The selected command
+	Command *Command // the selected command
 	Args    []string // the command's white-space delimited arguments
 }
 
@@ -41,34 +41,34 @@ var (
 	ErrNotFound  = errors.New("Command not found")
 )
 
-// NewTree creates a new command tree containing all of the listed
-// commands.
+// NewTree creates a new command tree containing all of the listed commands.
 func NewTree(title string, commands []Command) *Tree {
-	c := &Tree{
+	t := &Tree{
 		Title:    title,
-		Commands: commands,
-		tree:     prefixtree.New(),
+		Commands: make([]*Command, len(commands)),
+		pt:       prefixtree.New(),
 	}
-	for i, cc := range c.Commands {
-		c.Commands[i].Tree = c
-		c.tree.Add(cc.Name, &c.Commands[i])
-		if cc.Shortcut != "" {
-			c.tree.Add(cc.Shortcut, &c.Commands[i])
+
+	for i, c := range commands {
+		t.Commands[i] = new(Command)
+		*t.Commands[i] = c
+		t.pt.Add(c.Name, t.Commands[i])
+		if c.Shortcut != "" {
+			t.pt.Add(c.Shortcut, t.Commands[i])
 		}
 	}
-	return c
+	return t
 }
 
-// Lookup performs a hierarchical search on a command tree for a matching
-// command.
-func (c *Tree) Lookup(line string) (Selection, error) {
+// Lookup performs a search on a command tree for a matching command.
+func (t *Tree) Lookup(line string) (Selection, error) {
 	cmdStr, argStr := split2(line)
 
 	if cmdStr == "" {
 		return Selection{}, nil
 	}
 
-	ci, err := c.tree.Find(cmdStr)
+	ci, err := t.pt.Find(cmdStr)
 	switch err {
 	case prefixtree.ErrPrefixAmbiguous:
 		return Selection{}, ErrAmbiguous
@@ -80,7 +80,7 @@ func (c *Tree) Lookup(line string) (Selection, error) {
 
 	if cmd.Alias != "" {
 		line = cmd.Alias + " " + argStr
-		return c.Lookup(line)
+		return t.Lookup(line)
 	}
 
 	if cmd.Subcommands != nil && argStr != "" {

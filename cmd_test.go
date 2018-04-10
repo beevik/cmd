@@ -4,13 +4,13 @@ import "testing"
 
 func buildTree() *Tree {
 	tree := NewTree("root", []Command{
-		{Name: "quit", Param: "quit"},
+		{Name: "quit", Data: "quit"},
 		{Name: "file", Subcommands: NewTree("File", []Command{
-			{Name: "open", Param: "open"},
-			{Name: "close", Param: "close"},
-			{Name: "read", Param: "read"},
-			{Name: "write", Param: "write"},
-			{Name: "run", Param: "run"},
+			{Name: "open", Data: "open"},
+			{Name: "close", Data: "close"},
+			{Name: "read", Data: "read"},
+			{Name: "write", Data: "write"},
+			{Name: "run", Data: "run"},
 		})},
 	})
 	return tree
@@ -47,8 +47,8 @@ func TestLookup(t *testing.T) {
 			t.Errorf("Case %d: expected error '%s', got '%s'.\n", i, c.err, err.Error())
 		case err != nil && c.err == err.Error():
 			continue
-		case sel.Command.Param != c.param:
-			t.Errorf("Case %d: expected param '%s', got '%s'\n", i, c.param, sel.Command.Param)
+		case sel.Command.Data != c.param:
+			t.Errorf("Case %d: expected param '%s', got '%s'\n", i, c.param, sel.Command.Data)
 		case len(sel.Args) != len(c.args):
 			t.Errorf("Case %d: expected %d args, got %d.\n", i, len(c.args), len(sel.Args))
 		default:
