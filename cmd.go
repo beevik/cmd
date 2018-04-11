@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/beevik/prefixtree"
 )
@@ -14,16 +15,15 @@ type Tree struct {
 	pt       *prefixtree.Tree
 }
 
-// A Command represents either a single named command or a new subtree of
-// commands.
+// A Command represents either a single named command or the root of a subtree
+// of commands.
 type Command struct {
 	Name        string      // command string
-	Shortcut    string      // optional shortcut for command
-	Brief       string      // brief description shown in command list
-	Description string      // short description shown in command list help
-	HelpText    string      // help text displayed for the command
-	Alias       string      // command's alias (usually nested)
-	Subcommands *Tree       // the command's subtree of commands
+	Brief       string      // brief description shown in a command list
+	Description string      // long description shown with command help
+	Usage       string      // usage hint text
+	Shortcuts   []string    // command shortcuts
+	Subtree     *Tree       // the command's subtree of commands
 	Data        interface{} // user-defined data for this command
 }
 
@@ -41,77 +41,88 @@ var (
 	ErrNotFound  = errors.New("Command not found")
 )
 
-// NewTree creates a new command tree containing all of the listed commands.
-func NewTree(title string, commands []Command) *Tree {
-	t := &Tree{
+// NewTree creates a new command tree with the given title.
+func NewTree(title string) *Tree {
+	return &Tree{
 		Title:    title,
-		Commands: make([]*Command, len(commands)),
+		Commands: make([]*Command, 0),
 		pt:       prefixtree.New(),
 	}
-
-	for i, c := range commands {
-		t.Commands[i] = new(Command)
-		*t.Commands[i] = c
-		t.pt.Add(c.Name, t.Commands[i])
-		if c.Shortcut != "" {
-			t.pt.Add(c.Shortcut, t.Commands[i])
-		}
-	}
-	return t
 }
 
-// Lookup performs a search on a command tree for a matching command.
+// AddCommand adds a command to a command tree.
+func (t *Tree) AddCommand(c Command) *Command {
+	cc := &Command{}
+	*cc = c
+	t.Commands = append(t.Commands, cc)
+	t.pt.Add(c.Name, cc)
+	return cc
+}
+
+// AddShortcut adds a shortcut to a command in the tree.
+func (t *Tree) AddShortcut(shortcut, target string) error {
+	if len(strings.Fields(shortcut)) > 1 {
+		return errors.New("invalid shortcut")
+	}
+
+	cmd, _, err := t.lookupCommand(target)
+	if err != nil {
+		return err
+	}
+
+	cmd.Shortcuts = append(cmd.Shortcuts, shortcut)
+	t.pt.Add(shortcut, cmd)
+	return nil
+}
+
+// Lookup performs a search on a command tree for a matching command. If
+// found, it returns the command and the command arguments.
 func (t *Tree) Lookup(line string) (Selection, error) {
+	cmd, args, err := t.lookupCommand(line)
+	if err != nil {
+		return Selection{}, err
+	}
+
+	return Selection{cmd, args}, nil
+}
+
+func (t *Tree) lookupCommand(line string) (cmd *Command, args []string, err error) {
 	cmdStr, argStr := split2(line)
 
+	args = make([]string, 0)
 	if cmdStr == "" {
-		return Selection{}, nil
+		return cmd, args, nil
 	}
 
-	ci, err := t.pt.Find(cmdStr)
-	switch err {
-	case prefixtree.ErrPrefixAmbiguous:
-		return Selection{}, ErrAmbiguous
-	case prefixtree.ErrPrefixNotFound:
-		return Selection{}, ErrNotFound
+	pt := t.pt
+	for {
+		ci, err := pt.Find(cmdStr)
+		switch err {
+		case prefixtree.ErrPrefixAmbiguous:
+			return cmd, args, ErrAmbiguous
+		case prefixtree.ErrPrefixNotFound:
+			return cmd, args, ErrNotFound
+		}
+
+		cmd = ci.(*Command)
+
+		if cmd.Subtree == nil || argStr == "" {
+			break
+		}
+
+		cmdStr, argStr = split2(argStr)
+		pt = cmd.Subtree.pt
 	}
 
-	cmd := ci.(*Command)
-
-	if cmd.Alias != "" {
-		line = cmd.Alias + " " + argStr
-		return t.Lookup(line)
-	}
-
-	if cmd.Subcommands != nil && argStr != "" {
-		return cmd.Subcommands.Lookup(argStr)
-	}
-
-	args := splitArgs(argStr)
-	return Selection{Command: cmd, Args: args}, nil
+	args = strings.Fields(stripLeadingWhitespace(argStr))
+	return cmd, args, nil
 }
 
 func split2(s string) (cmd, args string) {
-	return nextToken(stripLeadingWhitespace(s))
+	return nextField(stripLeadingWhitespace(s))
 }
 
-func splitArgs(args string) []string {
-	args = stripLeadingWhitespace(args)
-
-	ss := make([]string, 0)
-	for len(args) > 0 {
-		var arg string
-		arg, args = nextToken(args)
-		ss = append(ss, arg)
-	}
-
-	if len(args) > 0 {
-		ss = append(ss, args)
-	}
-	return ss
-}
-
-func nextToken(s string) (token, remain string) {
+func nextField(s string) (field, remain string) {
 	for i, c := range s {
 		if c == ' ' || c == '\t' {
 			return s[:i], stripLeadingWhitespace(s[i:])

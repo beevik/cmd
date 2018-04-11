@@ -1,18 +1,21 @@
 package cmd
 
-import "testing"
+import (
+	"testing"
+)
 
 func buildTree() *Tree {
-	tree := NewTree("root", []Command{
-		{Name: "quit", Data: "quit"},
-		{Name: "file", Subcommands: NewTree("File", []Command{
-			{Name: "open", Data: "open"},
-			{Name: "close", Data: "close"},
-			{Name: "read", Data: "read"},
-			{Name: "write", Data: "write"},
-			{Name: "run", Data: "run"},
-		})},
-	})
+	tree := NewTree("root")
+	tree.AddCommand(Command{Name: "quit", Data: "quit"})
+
+	file := NewTree("File")
+	file.AddCommand(Command{Name: "open", Data: "open"})
+	file.AddCommand(Command{Name: "close", Data: "close"})
+	file.AddCommand(Command{Name: "read", Data: "read"})
+	file.AddCommand(Command{Name: "write", Data: "write"})
+	file.AddCommand(Command{Name: "run", Data: "run"})
+	tree.AddCommand(Command{Name: "file", Subtree: file})
+
 	return tree
 }
 
