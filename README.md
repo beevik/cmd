@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/beevik/cmd.svg?branch=master)](https://travis-ci.org/beevik/cmd)
 [![GoDoc](https://godoc.org/github.com/beevik/cmd?status.svg)](https://godoc.org/github.com/beevik/cmd)
 
 cmd
@@ -45,16 +46,17 @@ This code shows how the command tree used in the example above might be
 created:
 
 ```go
-var commands = cmd.NewTree("root", []cmd.Command{
-    {Name: "file", Description: "File commands", Subcommands: cmd.NewTree("File", []cmd.Command{
-        {Name: "open", Description: "Open file", Param: (*app).onFileOpen},
-        {Name: "close", Description: "Close file", Param: (*app).onFileClose},
-        {Name: "read", Description: "Read file", Param: (*app).onFileRead},
-        {Name: "write", Description: "Write file", Param: (*app).onFileWrite},        
-    })},
-    {Name: "status", Description: "Show status", Param: (*app).onStatus},
-    {Name: "quit", Description: "Quit", Param: (*app).onQuit},
-})
+root := cmd.NewTree("Root")
+
+file := cmd.NewTree("File")
+root.AddCommand(cmd.Command{Name: "file", Subtree: file})
+file.AddCommand(cmd.Command{Name: "open", Brief: "Open file", Data: (*app).onOpen})
+file.AddCommand(cmd.Command{Name: "close", Brief: "Close file", Data: (*app).onClose})
+file.AddCommand(cmd.Command{Name: "read", Brief: "Read file", Data: (*app).onRead})
+file.AddCommand(cmd.Command{Name: "write", Brief: "Write file", Data: (*app).onWrite})
+
+root.AddCommand(cmd.Command{Name: "status", Brief: "Show status", Data: (*app).onStatus})
+root.AddCommand(cmd.Command{Name: "quit", Brief: "Quit application", Data: (*app).onQuit})
 ```
 
 And here is how you might query the command tree:
