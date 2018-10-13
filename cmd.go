@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
+	"io"
 	"strings"
 
 	"github.com/beevik/prefixtree"
@@ -25,6 +27,25 @@ type Command struct {
 	Shortcuts   []string    // command shortcuts
 	Subtree     *Tree       // the command's subtree of commands
 	Data        interface{} // user-defined data for this command
+}
+
+// DisplayUsage outputs the command's usage string.
+func (c *Command) DisplayUsage(w io.Writer) {
+	if c.Usage != "" {
+		fmt.Fprintf(w, "Usage: %s\n", c.Usage)
+	}
+}
+
+// DisplayShortcuts displays all shortcuts associated with the command.
+func (c *Command) DisplayShortcuts(w io.Writer) {
+	if c.Shortcuts != nil {
+		switch {
+		case len(c.Shortcuts) > 1:
+			fmt.Fprintf(w, "Shortcuts: %s\n\n", strings.Join(c.Shortcuts, ", "))
+		default:
+			fmt.Fprintf(w, "Shortcut: %s\n\n", c.Shortcuts[0])
+		}
+	}
 }
 
 // A Selection represents the result of looking up a command in a command
@@ -75,6 +96,86 @@ func (t *Tree) AddShortcut(shortcut, target string) error {
 	return nil
 }
 
+// DisplayHelp parses the 'help' command's arguments string and displays
+// an appropriate help response.
+func (t *Tree) DisplayHelp(w io.Writer, args []string) error {
+	switch {
+	case len(args) == 0:
+		t.DisplayCommands(w)
+	default:
+		s, err := t.Lookup(strings.Join(args, " "))
+		if err != nil {
+			return err
+		} else {
+			switch {
+			case s.Command.Subtree != nil:
+				s.Command.Subtree.DisplayCommands(w)
+			default:
+				s.Command.DisplayUsage(w)
+				switch {
+				case s.Command.Description != "":
+					fmt.Fprintf(w, "Description:\n%s\n\n", indentWrap(3, s.Command.Description))
+				case s.Command.Brief != "":
+					fmt.Fprintf(w, "Description:\n%s.\n\n", indentWrap(3, s.Command.Brief))
+				}
+			}
+			s.Command.DisplayShortcuts(w)
+		}
+	}
+	return nil
+}
+
+func indentWrap(indent int, s string) string {
+	ss := strings.Fields(s)
+	if len(ss) == 0 {
+		return ""
+	}
+
+	counts := make([]int, 0)
+	count := 1
+	l := indent + len(ss[0])
+	for i := 1; i < len(ss); i++ {
+		if l+1+len(ss[i]) < 80 {
+			count++
+			l += 1 + len(ss[i])
+			continue
+		}
+
+		counts = append(counts, count)
+		count = 1
+		l = indent + len(ss[i])
+	}
+	counts = append(counts, count)
+
+	var lines []string
+	i := 0
+	for _, c := range counts {
+		line := strings.Repeat(" ", indent) + strings.Join(ss[i:i+c], " ")
+		lines = append(lines, line)
+		i += c
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// DisplayCommands displays the commands available at the tree's top level.
+func (t *Tree) DisplayCommands(w io.Writer) {
+	maxNameLen := 0
+	for _, c := range t.Commands {
+		if len(c.Name) > maxNameLen {
+			maxNameLen = len(c.Name)
+		}
+	}
+
+	fmt.Fprintf(w, "%s commands:\n", t.Title)
+	for _, c := range t.Commands {
+		if c.Brief != "" {
+			fmt.Fprintf(w, "    %-*s  %s\n", maxNameLen, c.Name, c.Brief)
+		}
+	}
+	fmt.Fprintln(w)
+}
+
 // Lookup performs a search on a command tree for a matching command. If
 // found, it returns the command and the command arguments.
 func (t *Tree) Lookup(line string) (Selection, error) {
@@ -114,7 +215,12 @@ func (t *Tree) lookupCommand(line string) (cmd *Command, args []string, err erro
 		pt = cmd.Subtree.pt
 	}
 
-	args = strings.Fields(stripLeadingWhitespace(argStr))
+	args = []string{}
+	for argStr != "" {
+		var arg string
+		arg, argStr = nextField(argStr)
+		args = append(args, arg)
+	}
 	return cmd, args, nil
 }
 
@@ -123,6 +229,15 @@ func split2(s string) (cmd, args string) {
 }
 
 func nextField(s string) (field, remain string) {
+	if len(s) > 0 && s[0] == '"' {
+		for i, c := range s[1:] {
+			if c == '"' {
+				return s[1 : i+1], stripLeadingWhitespace(s[i+2:])
+			}
+		}
+		return s[1:], ""
+	}
+
 	for i, c := range s {
 		if c == ' ' || c == '\t' {
 			return s[:i], stripLeadingWhitespace(s[i:])
