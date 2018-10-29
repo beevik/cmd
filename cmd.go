@@ -104,23 +104,21 @@ func (t *Tree) DisplayHelp(w io.Writer, args []string) error {
 		t.DisplayCommands(w)
 	default:
 		s, err := t.Lookup(strings.Join(args, " "))
-		if err != nil {
+		switch {
+		case err != nil:
 			return err
-		} else {
+		case s.Command.Subtree != nil:
+			s.Command.Subtree.DisplayCommands(w)
+		default:
+			s.Command.DisplayUsage(w)
 			switch {
-			case s.Command.Subtree != nil:
-				s.Command.Subtree.DisplayCommands(w)
-			default:
-				s.Command.DisplayUsage(w)
-				switch {
-				case s.Command.Description != "":
-					fmt.Fprintf(w, "Description:\n%s\n\n", indentWrap(3, s.Command.Description))
-				case s.Command.Brief != "":
-					fmt.Fprintf(w, "Description:\n%s.\n\n", indentWrap(3, s.Command.Brief))
-				}
+			case s.Command.Description != "":
+				fmt.Fprintf(w, "Description:\n%s\n\n", indentWrap(3, s.Command.Description))
+			case s.Command.Brief != "":
+				fmt.Fprintf(w, "Description:\n%s.\n\n", indentWrap(3, s.Command.Brief))
 			}
-			s.Command.DisplayShortcuts(w)
 		}
+		s.Command.DisplayShortcuts(w)
 	}
 	return nil
 }
