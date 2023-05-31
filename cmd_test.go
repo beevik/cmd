@@ -6,15 +6,16 @@ import (
 
 func buildTree() *Tree {
 	tree := NewTree("root")
+	file := NewTree("file")
+
+	tree.AddCommand(Command{Name: "file", Subtree: file})
 	tree.AddCommand(Command{Name: "quit", Data: "quit"})
 
-	file := NewTree("File")
 	file.AddCommand(Command{Name: "open", Data: "open"})
 	file.AddCommand(Command{Name: "close", Data: "close"})
 	file.AddCommand(Command{Name: "read", Data: "read"})
 	file.AddCommand(Command{Name: "write", Data: "write"})
 	file.AddCommand(Command{Name: "run", Data: "run"})
-	tree.AddCommand(Command{Name: "file", Subtree: file})
 
 	return tree
 }

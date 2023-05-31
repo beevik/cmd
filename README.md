@@ -46,24 +46,24 @@ This code shows how the command tree used in the example above might be
 created:
 
 ```go
-root := cmd.NewTree("Root")
+tree := cmd.NewTree("root")
+file := cmd.NewTree("file")
 
-file := cmd.NewTree("File")
-root.AddCommand(cmd.Command{Name: "file", Subtree: file})
+tree.AddCommand(cmd.Command{Name: "file", Subtree: file})
+tree.AddCommand(cmd.Command{Name: "status", Brief: "Show status", Data: (*app).onStatus})
+tree.AddCommand(cmd.Command{Name: "quit", Brief: "Quit application", Data: (*app).onQuit})
+
 file.AddCommand(cmd.Command{Name: "open", Brief: "Open file", Data: (*app).onOpen})
 file.AddCommand(cmd.Command{Name: "close", Brief: "Close file", Data: (*app).onClose})
 file.AddCommand(cmd.Command{Name: "read", Brief: "Read file", Data: (*app).onRead})
 file.AddCommand(cmd.Command{Name: "write", Brief: "Write file", Data: (*app).onWrite})
-
-root.AddCommand(cmd.Command{Name: "status", Brief: "Show status", Data: (*app).onStatus})
-root.AddCommand(cmd.Command{Name: "quit", Brief: "Quit application", Data: (*app).onQuit})
 ```
 
 And here is how you might query the command tree:
 
 ```go
 func (a *app) processCommand(s string) error {
-    sel, err := commands.Lookup(s)
+    sel, err := tree.Lookup(s)
     switch {
         case err == cmd.ErrAmbiguous:
             fmt.Printf("Command '%s' is ambiguous.\n", s)
