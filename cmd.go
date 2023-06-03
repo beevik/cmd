@@ -20,13 +20,13 @@ type Tree struct {
 // A Command represents either a single named command or the root of a subtree
 // of commands.
 type Command struct {
-	Name        string      // command string
-	Brief       string      // brief description shown in a command list
-	Description string      // long description shown with command help
-	Usage       string      // usage hint text
-	Shortcuts   []string    // command shortcuts
-	Subtree     *Tree       // the command's subtree of commands
-	Data        interface{} // user-defined data for this command
+	Name        string   // command string
+	Brief       string   // brief description shown in a command list
+	Description string   // long description shown with command help
+	Usage       string   // usage hint text
+	Shortcuts   []string // command shortcuts
+	Subtree     *Tree    // the command's subtree of commands
+	Data        any      // user-defined data for this command
 }
 
 // DisplayUsage outputs the command's usage string.
