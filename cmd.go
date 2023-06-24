@@ -13,7 +13,6 @@ import (
 // A Node may be a Tree or a Command.
 type Node interface {
 	DisplayHelp(w io.Writer)
-	Parent() *Tree
 	name() string
 	brief() string
 }
@@ -32,7 +31,6 @@ type TreeDescriptor struct {
 type Tree struct {
 	TreeDescriptor
 	commands []*Command
-	parent   *Tree
 	subtrees []*Tree
 	pt       *prefixtree.Tree[Node]
 }
@@ -59,12 +57,6 @@ func (t *Tree) DisplayUsage(w io.Writer) {
 	}
 }
 
-// Parent returns the tree's parent tree, or nil if the tree is the root
-// of the command tree.
-func (t *Tree) Parent() *Tree {
-	return t.parent
-}
-
 // Subtrees returns the tree's subtrees.
 func (t *Tree) Subtrees() []*Tree {
 	return t.subtrees
@@ -83,7 +75,6 @@ type CommandDescriptor struct {
 // of commands.
 type Command struct {
 	CommandDescriptor
-	parent    *Tree
 	shortcuts []string
 }
 
@@ -133,11 +124,6 @@ func (c *Command) DisplayShortcuts(w io.Writer) {
 	}
 }
 
-// Parent returns the parent tree containing this command.
-func (c *Command) Parent() *Tree {
-	return c.parent
-}
-
 // Shortcuts returns the shortcut strings associated with the command.
 func (c *Command) Shortcuts() []string {
 	sort.Slice(c.shortcuts, func(i, j int) bool {
@@ -157,7 +143,6 @@ func NewTree(d TreeDescriptor) *Tree {
 	return &Tree{
 		TreeDescriptor: d,
 		commands:       nil,
-		parent:         nil,
 		subtrees:       nil,
 		pt:             prefixtree.New[Node](),
 	}
@@ -167,7 +152,6 @@ func NewTree(d TreeDescriptor) *Tree {
 func (t *Tree) AddCommand(d CommandDescriptor) *Command {
 	c := &Command{
 		CommandDescriptor: d,
-		parent:            t,
 		shortcuts:         nil,
 	}
 	t.commands = append(t.commands, c)
@@ -201,7 +185,6 @@ func (t *Tree) AddSubtree(d TreeDescriptor) *Tree {
 	subtree := &Tree{
 		TreeDescriptor: d,
 		commands:       nil,
-		parent:         t,
 		subtrees:       nil,
 		pt:             prefixtree.New[Node](),
 	}

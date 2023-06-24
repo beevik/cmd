@@ -18,56 +18,12 @@ func buildTree() *Tree {
 	file.AddCommand(CommandDescriptor{Name: "write", Data: "write"})
 	file.AddCommand(CommandDescriptor{Name: "run", Data: "run"})
 
-	tree.AddShortcut("f", "file open")
 	tree.AddShortcut("zz", "file open")
 	tree.AddShortcut("xx", "file open")
 	tree.AddShortcut("yy", "file open")
 	tree.AddShortcut("dd", "file open")
 
 	return tree
-}
-
-func TestParent(t *testing.T) {
-	tree := NewTree(TreeDescriptor{Name: "tree"})
-	tree.AddCommand(CommandDescriptor{Name: "quit"})
-
-	file := tree.AddSubtree(TreeDescriptor{Name: "file"})
-	open := file.AddSubtree(TreeDescriptor{Name: "open"})
-	file.AddCommand(CommandDescriptor{Name: "close"})
-	file.AddCommand(CommandDescriptor{Name: "read"})
-
-	open.AddCommand(CommandDescriptor{Name: "now"})
-	open.AddCommand(CommandDescriptor{Name: "later"})
-
-	tree.AddShortcut("f", "file open now")
-	tree.AddShortcut("xx", "file close")
-	tree.AddShortcut("yy", "file read")
-
-	cases := []struct {
-		line   string
-		parent *Tree
-	}{
-		{"quit", tree},
-		{"file", tree},
-		{"file open", file},
-		{"file open now", open},
-		{"file open later", open},
-		{"file close", file},
-		{"file read", file},
-		{"f", open},
-		{"xx", file},
-		{"yy", file},
-	}
-	for i, c := range cases {
-		n, _, err := tree.Lookup(c.line)
-		if err != nil {
-			t.Errorf("Case %d: unexpected parent for '%s'.\nError: %v\n", i, c.line, err)
-			continue
-		}
-		if n.Parent() != c.parent {
-			t.Errorf("Case %d: unexpected result.\nGot:\n%v\nWanted:\n%v\n", i, n.Parent(), c.parent)
-		}
-	}
 }
 
 func TestLookup(t *testing.T) {
@@ -92,9 +48,8 @@ func TestLookup(t *testing.T) {
 		{" 	file	open	\"foo\"   \"12\"  ", "open", []string{"foo", "12"}, ""},
 		{" 	file	open	\"foo   12\"  ", "open", []string{"foo   12"}, ""},
 		{" 	file	\"open\"	\"foo   12\"  ", "open", []string{"foo   12"}, ""},
-		{" 	fi open", "open", []string{}, ""},
-		{"f o xyz", "open", []string{"o", "xyz"}, ""},
-		{"fi o xyz", "open", []string{"xyz"}, ""},
+		{" 	f open", "open", []string{}, ""},
+		{"f o xyz", "open", []string{"xyz"}, ""},
 		{"quit", "quit", []string{}, ""},
 		{"q", "quit", []string{}, ""},
 		{"dd 1  2  3 4", "open", []string{"1", "2", "3", "4"}, ""},
@@ -138,7 +93,6 @@ func TestAutocomplete(t *testing.T) {
 	// root
 	//  alice [shortcut -> root.child.grandchild.alice]
 	//  chair
-	//	chairlift
 	//  child
 	//   sally
 	//   steve
@@ -147,7 +101,6 @@ func TestAutocomplete(t *testing.T) {
 	//    mike
 	tree := NewTree(TreeDescriptor{Name: "root"})
 	tree.AddCommand(CommandDescriptor{Name: "chair"})
-	tree.AddCommand(CommandDescriptor{Name: "chairlift"})
 
 	child := tree.AddSubtree(TreeDescriptor{Name: "child"})
 	child.AddCommand(CommandDescriptor{Name: "sally"})
@@ -163,21 +116,16 @@ func TestAutocomplete(t *testing.T) {
 		line    string
 		matches []string
 	}{
-		{"", []string{"alice", "chair", "chairlift", "child"}},
+		{"", []string{"alice", "chair", "child"}},
 		{"x", []string{}},
 		{"a", []string{"alice"}},
 		{"al", []string{"alice"}},
 		{"alice", []string{"alice"}},
-		{"c", []string{"chair", "chairlift", "child"}},
-		{"ch", []string{"chair", "chairlift", "child"}},
-		{"cha", []string{"chair", "chairlift"}},
-		{"chai", []string{"chair", "chairlift"}},
+		{"c", []string{"chair", "child"}},
+		{"ch", []string{"chair", "child"}},
+		{"cha", []string{"chair"}},
+		{"chai", []string{"chair"}},
 		{"chair", []string{"chair"}},
-		{"chairl", []string{"chairlift"}},
-		{"chairli", []string{"chairlift"}},
-		{"chairlif", []string{"chairlift"}},
-		{"chairlift", []string{"chairlift"}},
-		{"chairlift foo", []string{}},
 		{"chair foo", []string{}},
 		{"chairs", []string{}},
 		{"chi", []string{"child"}},
@@ -266,7 +214,7 @@ func TestGetHelp(t *testing.T) {
 			"Description:\n" +
 				"   open a file.\n" +
 				"\n" +
-				"Shortcuts: dd, f, xx, yy, zz\n" +
+				"Shortcuts: dd, xx, yy, zz\n" +
 				"\n",
 		},
 		{
@@ -284,7 +232,7 @@ func TestGetHelp(t *testing.T) {
 			"Description:\n" +
 				"   open a file.\n" +
 				"\n" +
-				"Shortcuts: dd, f, xx, yy, zz\n" +
+				"Shortcuts: dd, xx, yy, zz\n" +
 				"\n",
 		},
 		{
