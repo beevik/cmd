@@ -1,4 +1,3 @@
-[![Build Status](https://travis-ci.org/beevik/cmd.svg?branch=master)](https://travis-ci.org/beevik/cmd)
 [![GoDoc](https://godoc.org/github.com/beevik/cmd?status.svg)](https://godoc.org/github.com/beevik/cmd)
 
 cmd
