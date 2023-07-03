@@ -27,6 +27,49 @@ func buildTree() *Tree {
 	return tree
 }
 
+func TestParent(t *testing.T) {
+	tree := NewTree(TreeDescriptor{Name: "tree"})
+	tree.AddCommand(CommandDescriptor{Name: "quit"})
+
+	file := tree.AddSubtree(TreeDescriptor{Name: "file"})
+	open := file.AddSubtree(TreeDescriptor{Name: "open"})
+	file.AddCommand(CommandDescriptor{Name: "close"})
+	file.AddCommand(CommandDescriptor{Name: "read"})
+
+	open.AddCommand(CommandDescriptor{Name: "now"})
+	open.AddCommand(CommandDescriptor{Name: "later"})
+
+	tree.AddShortcut("f", "file open now")
+	tree.AddShortcut("xx", "file close")
+	tree.AddShortcut("yy", "file read")
+
+	cases := []struct {
+		line   string
+		parent *Tree
+	}{
+		{"quit", tree},
+		{"file", tree},
+		{"file open", file},
+		{"file open now", open},
+		{"file open later", open},
+		{"file close", file},
+		{"file read", file},
+		{"f", open},
+		{"xx", file},
+		{"yy", file},
+	}
+	for i, c := range cases {
+		n, _, err := tree.Lookup(c.line)
+		if err != nil {
+			t.Errorf("Case %d: unexpected parent for '%s'.\nError: %v\n", i, c.line, err)
+			continue
+		}
+		if n.Parent() != c.parent {
+			t.Errorf("Case %d: unexpected result.\nGot:\n%v\nWanted:\n%v\n", i, n.Parent(), c.parent)
+		}
+	}
+}
+
 func TestLookup(t *testing.T) {
 	tree := buildTree()
 
