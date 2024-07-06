@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/beevik/prefixtree"
+	"github.com/beevik/prefixtree/v2"
 )
 
 // A Node may be a Tree or a Command.
@@ -34,7 +34,7 @@ type Tree struct {
 	commands []*Command
 	parent   *Tree
 	subtrees []*Tree
-	pt       *prefixtree.Tree
+	pt       *prefixtree.Tree[Node]
 }
 
 func (t *Tree) name() string {
@@ -159,7 +159,7 @@ func NewTree(d TreeDescriptor) *Tree {
 		commands:       nil,
 		parent:         nil,
 		subtrees:       nil,
-		pt:             prefixtree.New(),
+		pt:             prefixtree.New[Node](),
 	}
 }
 
@@ -203,7 +203,7 @@ func (t *Tree) AddSubtree(d TreeDescriptor) *Tree {
 		commands:       nil,
 		parent:         t,
 		subtrees:       nil,
-		pt:             prefixtree.New(),
+		pt:             prefixtree.New[Node](),
 	}
 	t.subtrees = append(t.subtrees, subtree)
 	t.pt.Add(subtree.Name, subtree)
@@ -358,13 +358,14 @@ func (t *Tree) Lookup(line string) (n Node, args []string, err error) {
 			return nil, args, ErrNotFound
 		}
 
-		n = v.(Node)
-		if _, ok := n.(*Command); ok {
+		if _, ok := v.(*Command); ok {
+			n = v
 			break
 		}
 
-		subtree := n.(*Tree)
+		subtree := v.(*Tree)
 		if remain == "" {
+			n = v
 			break
 		}
 
