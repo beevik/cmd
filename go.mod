@@ -1,5 +1,5 @@
 module github.com/beevik/cmd
 
-go 1.18
+go 1.21
 
-require github.com/beevik/prefixtree v0.3.0
+require github.com/beevik/prefixtree v1.0.1
