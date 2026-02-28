@@ -6,16 +6,16 @@ import (
 	"testing"
 )
 
-func buildTree() *Tree {
+func buildTree1() *Tree {
 	tree := NewTree(TreeDescriptor{Name: "tree"})
-	tree.AddCommand(CommandDescriptor{Name: "quit", Brief: "quit the application", Data: "quit"})
-	tree.AddCommand(CommandDescriptor{Name: "verylongstring", Brief: "very long string"})
+	tree.AddCommand(CommandDescriptor{Name: "quit", Brief: "quit the application", Description: "Quit the application.", Usage: "quit", Data: "quit"})
+	tree.AddCommand(CommandDescriptor{Name: "verylongstring", Brief: "very long string", Description: "This is a very long string.", Data: "verylongstring"})
 
-	file := tree.AddSubtree(TreeDescriptor{Name: "file", Brief: "file commands"})
-	file.AddCommand(CommandDescriptor{Name: "open", Brief: "open a file", Data: "open"})
-	file.AddCommand(CommandDescriptor{Name: "close", Brief: "close a file", Data: "close"})
-	file.AddCommand(CommandDescriptor{Name: "read", Description: "read file description.", Brief: "read a file", Data: "read"})
-	file.AddCommand(CommandDescriptor{Name: "write", Data: "write"})
+	file := tree.AddSubtree(TreeDescriptor{Name: "file", Brief: "file commands", Description: "Commands that operate on files."})
+	file.AddCommand(CommandDescriptor{Name: "open", Brief: "open a file", Description: "Open the specified file.", Usage: "file open <filename>", Data: "open"})
+	file.AddCommand(CommandDescriptor{Name: "close", Brief: "close a file", Description: "Close the specified file.", Data: "close"})
+	file.AddCommand(CommandDescriptor{Name: "read", Brief: "read a file", Description: "Read the specified file.", Data: "read"})
+	file.AddCommand(CommandDescriptor{Name: "write", Brief: "write a file", Data: "write"})
 	file.AddCommand(CommandDescriptor{Name: "run", Data: "run"})
 
 	tree.AddShortcut("f", "file open")
@@ -23,6 +23,72 @@ func buildTree() *Tree {
 	tree.AddShortcut("xx", "file open")
 	tree.AddShortcut("yy", "file open")
 	tree.AddShortcut("dd", "file open")
+
+	return tree
+}
+
+func buildTree2() *Tree {
+	json := `{
+	"tree": {
+		"cmds": [
+			{
+				"name": "quit",
+				"brief": "quit the application",
+				"description": "Quit the application.",
+				"usage": "quit"
+			},
+			{
+				"name": "verylongstring",
+				"brief": "very long string",
+				"description": "This is a very long string."
+			},
+			{
+				"name": "file",
+				"brief": "file commands",
+				"description": "Commands that operate on files.",
+				"cmds": [
+					{
+						"name": "open",
+						"brief": "open a file",
+						"description": "Open the specified file.",
+						"usage": "file open <filename>",
+						"shortcuts": ["f", "zz", "xx", "yy", "dd" ]
+					},
+					{
+						"name": "close",
+						"brief": "close a file",
+						"description": "Close the specified file."
+					},
+					{
+						"name": "read",
+						"brief": "read a file",
+						"description": "Read the specified file."
+					},
+					{
+						"name": "write",
+						"brief": "write a file"
+					},
+					{
+						"name": "run"
+					}
+				]
+			}
+		]
+	}
+}`
+
+	tree, err := NewTreeFromJSON(json)
+	if err != nil {
+		panic(err)
+	}
+
+	tree.SetData("quit", "quit")
+	tree.SetData("verylongstring", "verylongstring")
+	tree.SetData("file open", "open")
+	tree.SetData("file close", "close")
+	tree.SetData("file read", "read")
+	tree.SetData("file write", "write")
+	tree.SetData("file run", "run")
 
 	return tree
 }
@@ -71,8 +137,6 @@ func TestParent(t *testing.T) {
 }
 
 func TestLookup(t *testing.T) {
-	tree := buildTree()
-
 	cases := []struct {
 		line string
 		data string
@@ -103,35 +167,40 @@ func TestLookup(t *testing.T) {
 		{"x 1  2  3 4", "open", []string{"1", "2", "3", "4"}, ""},
 	}
 
-	for i, c := range cases {
-		n, args, err := tree.Lookup(c.line)
-		cmd, _ := n.(*Command)
-		argMismatch := false
-		switch {
-		case err == nil && c.err != "":
-			t.Errorf("Case %d: Expected error '%s', but got no error\n", i, c.err)
-		case err != nil && c.err == "":
-			t.Errorf("Case %d: unexpected error '%v'", i, err)
-		case err != nil && c.err != err.Error():
-			t.Errorf("Case %d: expected error '%s', got '%s'.\n", i, c.err, err.Error())
-		case err != nil && c.err == err.Error():
-			continue
-		case cmd != nil && cmd.Data != c.data:
-			t.Errorf("Case %d: expected param '%s', got '%s'\n", i, c.data, cmd.Data)
-		case len(args) != len(c.args):
-			argMismatch = true
-		default:
-			for j := 0; j < len(args); j++ {
-				if args[j] != c.args[j] {
-					argMismatch = true
+	run := func(t *testing.T, tree *Tree) {
+		for i, c := range cases {
+			n, args, err := tree.Lookup(c.line)
+			cmd, _ := n.(*Command)
+			argMismatch := false
+			switch {
+			case err == nil && c.err != "":
+				t.Errorf("Case %d: Expected error '%s', but got no error\n", i, c.err)
+			case err != nil && c.err == "":
+				t.Errorf("Case %d: unexpected error '%v'", i, err)
+			case err != nil && c.err != err.Error():
+				t.Errorf("Case %d: expected error '%s', got '%s'.\n", i, c.err, err.Error())
+			case err != nil && c.err == err.Error():
+				continue
+			case cmd != nil && cmd.Data != c.data:
+				t.Errorf("Case %d: expected param '%s', got '%s'\n", i, c.data, cmd.Data)
+			case len(args) != len(c.args):
+				argMismatch = true
+			default:
+				for j := 0; j < len(args); j++ {
+					if args[j] != c.args[j] {
+						argMismatch = true
+					}
 				}
 			}
-		}
-		if argMismatch {
-			t.Errorf("Case %d: args mismatch.\nEXPECTED: [%s]\nGOT: [%s]\n",
-				i, strings.Join(c.args, ", "), strings.Join(args, ", "))
+			if argMismatch {
+				t.Errorf("Case %d: args mismatch.\nEXPECTED: [%s]\nGOT: [%s]\n",
+					i, strings.Join(c.args, ", "), strings.Join(args, ", "))
+			}
 		}
 	}
+
+	run(t, buildTree1())
+	run(t, buildTree2())
 }
 
 func TestAutocomplete(t *testing.T) {
@@ -259,12 +328,14 @@ func TestGetHelp(t *testing.T) {
 				"    close  close a file\n" +
 				"    open   open a file\n" +
 				"    read   read a file\n" +
+				"    write  write a file\n" +
 				"\n",
 		},
 		{
 			"file open",
-			"Description:\n" +
-				"   open a file.\n" +
+			"Usage: file open <filename>\n" +
+				"Description:\n" +
+				"   Open the specified file.\n" +
 				"\n" +
 				"Shortcuts: dd, f, xx, yy, zz\n" +
 				"\n",
@@ -276,34 +347,40 @@ func TestGetHelp(t *testing.T) {
 		{
 			"file read",
 			"Description:\n" +
-				"   read file description.\n" +
+				"   Read the specified file.\n" +
 				"\n",
 		},
 		{
 			"xx",
-			"Description:\n" +
-				"   open a file.\n" +
+			"Usage: file open <filename>\n" +
+				"Description:\n" +
+				"   Open the specified file.\n" +
 				"\n" +
 				"Shortcuts: dd, f, xx, yy, zz\n" +
 				"\n",
 		},
 		{
 			"quit",
-			"Description:\n" +
-				"   quit the application.\n" +
+			"Usage: quit\n" +
+				"Description:\n" +
+				"   Quit the application.\n" +
 				"\n",
 		},
 	}
 
-	for _, c := range cases {
-		tree := buildTree()
-		buf := new(bytes.Buffer)
-		tree.GetHelp(buf, strings.Fields(c.line))
-		help := buf.String()
-		if help != c.help {
-			t.Errorf("DisplayCommands produced unexpected result.\n"+
-				"EXPECTED:\n%s\nGOT:\n%s\n",
-				c.help, help)
+	run := func(t *testing.T, tree *Tree) {
+		for _, c := range cases {
+			buf := new(bytes.Buffer)
+			tree.GetHelp(buf, strings.Fields(c.line))
+			help := buf.String()
+			if help != c.help {
+				t.Errorf("DisplayCommands produced unexpected result.\n"+
+					"EXPECTED:\n%s\nGOT:\n%s\n",
+					c.help, help)
+			}
 		}
 	}
+
+	run(t, buildTree1())
+	run(t, buildTree2())
 }

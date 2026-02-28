@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -152,6 +153,143 @@ var (
 	ErrNotFound  = errors.New("Command not found")
 )
 
+// NewTreeFromJSON creates a new command tree from a JSON string. Nodes with a
+// "cmds" array are treated as subtrees, while nodes without one are treated
+// as commands. Use the SetData function to associate user-defined data with a
+// command after the tree is created.
+//
+// Example JSON input:
+//
+//	{
+//	  "myapp": {
+//	    "brief": "myapp command tree",
+//	    "description": "This is the myapp command tree.",
+//	    "usage": "myapp [subcommand]",
+//	    "cmds": [
+//	      {
+//	        "name": "foo",
+//	        "brief": "foo command",
+//	        "description": "Use the foo command to do foo things.",
+//	        "usage": "myapp foo [args]",
+//	        "shortcuts": [ "f" ]
+//	      },
+//	      {
+//	        "name": "bar",
+//	        "brief": "bar command",
+//	        "description": "Use the bar command to do bar things.",
+//	        "usage": "myapp bar [args]"
+//	      },
+//	      {
+//	        "name": "baz",
+//	        "brief": "baz subtree",
+//	        "description": "This is the baz subtree.",
+//	        "usage": "myapp baz [subcommand]",
+//	        "cmds": [
+//	          {
+//	            "name": "qux",
+//	            "brief": "baz qux command",
+//	            "description": "Use the qux command to do qux things.",
+//	            "usage": "myapp baz qux [args]"
+//	            "shortcuts": [ "bq" ]
+//	          },
+//	          {
+//	            "name": "quux",
+//	            "brief": "baz quux command",
+//	            "description": "Use the quux command to do quux things.",
+//	            "usage": "myapp baz quux [args]"
+//	          }
+//	        ]
+//	      }
+//	    ]
+//	  }
+//	}
+func NewTreeFromJSON(jsonStr string) (*Tree, error) {
+	type jsonNode struct {
+		Name        string      `json:"name"`
+		Brief       string      `json:"brief"`
+		Description string      `json:"description"`
+		Usage       string      `json:"usage"`
+		Shortcuts   []string    `json:"shortcuts"`
+		Cmds        []*jsonNode `json:"cmds"`
+	}
+
+	var root map[string]*jsonNode
+	if err := json.Unmarshal([]byte(jsonStr), &root); err != nil {
+		return nil, err
+	}
+	if len(root) != 1 {
+		return nil, errors.New("JSON must contain exactly one root tree")
+	}
+
+	var treeName string
+	var rootNode *jsonNode
+	for k, v := range root {
+		treeName, rootNode = k, v
+	}
+
+	tree := NewTree(TreeDescriptor{
+		Name:        treeName,
+		Brief:       rootNode.Brief,
+		Description: rootNode.Description,
+		Usage:       rootNode.Usage,
+	})
+
+	type shortcut struct {
+		key  string
+		node Node
+	}
+	var shortcuts []shortcut
+
+	var build func(t *Tree, nodes []*jsonNode) error
+	build = func(t *Tree, nodes []*jsonNode) error {
+		for _, n := range nodes {
+			if n.Name == "" {
+				return errors.New("cmd node missing required 'name' field")
+			}
+			var node Node
+			if len(n.Cmds) > 0 {
+				subtree := t.AddSubtree(TreeDescriptor{
+					Name:        n.Name,
+					Brief:       n.Brief,
+					Description: n.Description,
+					Usage:       n.Usage,
+				})
+				if err := build(subtree, n.Cmds); err != nil {
+					return err
+				}
+				node = subtree
+			} else {
+				node = t.AddCommand(CommandDescriptor{
+					Name:        n.Name,
+					Brief:       n.Brief,
+					Description: n.Description,
+					Usage:       n.Usage,
+				})
+			}
+			for _, s := range n.Shortcuts {
+				shortcuts = append(shortcuts, shortcut{s, node})
+			}
+		}
+		return nil
+	}
+
+	if err := build(tree, rootNode.Cmds); err != nil {
+		return nil, err
+	}
+
+	for _, s := range shortcuts {
+		tree.pt.Add(s.key, s.node)
+		if cmd, ok := s.node.(*Command); ok {
+			i := sort.SearchStrings(cmd.shortcuts, s.key)
+			cmd.shortcuts = append(cmd.shortcuts, "")
+			copy(cmd.shortcuts[i+1:], cmd.shortcuts[i:])
+			cmd.shortcuts[i] = s.key
+		}
+	}
+
+	return tree, nil
+}
+
 // NewTree creates a new command tree with the given title.
 func NewTree(d TreeDescriptor) *Tree {
 	return &Tree{
@@ -175,7 +313,7 @@ func (t *Tree) AddCommand(d CommandDescriptor) *Command {
 	return c
 }
 
-// AddShortcut adds a shortcut to a command in the tree.
+// AddShortcut adds a shortcut to an existing command in the tree.
 func (t *Tree) AddShortcut(shortcut, target string) error {
 	if len(strings.Fields(shortcut)) != 1 {
 		return errors.New("invalid shortcut")
@@ -208,6 +346,17 @@ func (t *Tree) AddSubtree(d TreeDescriptor) *Tree {
 	t.subtrees = append(t.subtrees, subtree)
 	t.pt.Add(subtree.Name, subtree)
 	return subtree
+}
+
+// SetData associates user-defined data with an existing command in the tree.
+func (t *Tree) SetData(target string, data any) error {
+	cmd, _, err := t.LookupCommand(target)
+	if err != nil {
+		return err
+	}
+
+	cmd.Data = data
+	return nil
 }
 
 // GetHelp parses the 'help' command's arguments string and displays
